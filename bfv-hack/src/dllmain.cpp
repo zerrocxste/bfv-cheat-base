@@ -50,10 +50,6 @@ float __fastcall UnkFunc_hooked(__int64 a1, __int64 a2)
 class vector3 {
 public:
 	float x, y, z;
-	bool operator!()
-	{
-		return x != 0.f && y != 0.f && z != 0.f;
-	}
 };
 
 class Matrix4x4
@@ -107,7 +103,7 @@ void thread(void* arg)
 					{
 						auto health = memory_utils::read<float>({ health_component, 0x20 });
 						auto origin = memory_utils::read<vector3>({ *it, 0xC90 });
-						if (!origin && health > 0.1f && health <= 101.f)
+						if (health > 0.1f && health <= 150.f)
 						{
 							i++;
 							printf("cse: 0x%I64X, health: %.1f, x: %.3f, y: %.3f, z: %.3f\n", *it, health, origin.x, origin.y, origin.z);
