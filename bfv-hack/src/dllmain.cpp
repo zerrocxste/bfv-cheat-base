@@ -98,11 +98,11 @@ void thread(void* arg)
 			{
 				if (memory_utils::is_valid_ptr((void*)*it))
 				{
-					auto health_component = memory_utils::read_value<DWORD_PTR>({ *it, 0x2E8 });
+					auto health_component = memory_utils::read<DWORD_PTR>({ *it, 0x2E8 });
 					if (health_component != NULL)
 					{
-						auto health = memory_utils::read_value<float>({ health_component, 0x20 });
-						auto origin = memory_utils::read_value<vector3>({ *it, 0xC90 });
+						auto health = memory_utils::read<float>({ health_component, 0x20 });
+						auto origin = memory_utils::read<vector3>({ *it, 0xC90 });
 						if (health > 0.1f && health <= 150.f)
 						{
 							i++;
