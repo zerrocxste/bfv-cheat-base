@@ -21,67 +21,32 @@ namespace memory_utils
 		return (ptr >= (PVOID)0x10000) && (ptr < PTRMAXVAL) && ptr != nullptr && !IsBadReadPtr(ptr, sizeof(ptr));
 	}
 
-	void write_string(std::vector<DWORD_OF_BITNESS>address, char* value)
+	bool write_string(std::vector<DWORD_OF_BITNESS>address, char* my_value)
 	{
-		size_t length_array = address.size() - 1;
-		DWORD_OF_BITNESS relative_address = address[0];
-		for (int i = 1; i < length_array + 1; i++)
-		{
-			if (is_valid_ptr((LPVOID)relative_address) == false)
-				return;
+		char* ptr = read_pointer<char*>(address);
 
-			if (i < length_array)
-				relative_address = *(DWORD_OF_BITNESS*)(relative_address + address[i]);
-			else
-			{
-				char* writable_address = (char*)(relative_address + address[length_array]);
-				*writable_address = *value;
-			}
-		}
+		if (ptr == NULL)
+			return false;
+
+		*ptr = *my_value;
+
+		return true;
 	}
 
 	char* read_string(std::vector<DWORD_OF_BITNESS>address)
 	{
-		size_t length_array = address.size() - 1;
-		DWORD_OF_BITNESS relative_address = address[0];
-		for (int i = 1; i < length_array + 1; i++)
-		{
-			if (is_valid_ptr((LPVOID)relative_address) == false)
-				return NULL;
+		return read_pointer<char*>(address);
+	}
 
-			if (i < length_array)
-				relative_address = *(DWORD_OF_BITNESS*)(relative_address + address[i]);
-			else
-			{
-				char* readable_address = (char*)(relative_address + address[length_array]);
-				return readable_address;
-			}
-		}
+	wchar_t* read_wstring(std::vector<DWORD_OF_BITNESS>address)
+	{
+		return read_pointer<wchar_t*>(address);
 	}
 
 	DWORD_OF_BITNESS get_module_size(DWORD_OF_BITNESS address)
 	{
 		return PIMAGE_NT_HEADERS(address + (DWORD_OF_BITNESS)PIMAGE_DOS_HEADER(address)->e_lfanew)->OptionalHeader.SizeOfImage;
 	}
-
-	/*DWORD_OF_BITNESS compare_mem(const char* pattern, const char* mask, DWORD_OF_BITNESS base, DWORD_OF_BITNESS size, const int patternLength, DWORD speed)
-	{
-		for (DWORD_OF_BITNESS i = 0; i < size - patternLength; i += speed)
-		{
-			bool found = true;
-			for (DWORD_OF_BITNESS j = 0; j < patternLength; j++)
-			{
-				found &= pattern[j] == *(char*)(base + i + j);
-			}
-
-			if (found)
-			{
-				return base + i;
-			}
-		}
-
-		return NULL;
-	}*/
 
 	DWORD_OF_BITNESS compare_mem(const char* pattern, const char* mask, DWORD_OF_BITNESS base, DWORD_OF_BITNESS size, const int patternLength, DWORD speed)
 	{

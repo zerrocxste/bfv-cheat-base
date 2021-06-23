@@ -11,7 +11,6 @@
 #include <mutex>
 #include <conio.h>
 
-#include "shellcode_patch_helper/shellcode_patch_helper.h"
 #include "memory_utils/memory_utils.h"
 
 #include "minhook/minhook.h"

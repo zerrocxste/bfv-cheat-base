@@ -7,9 +7,6 @@
     <Filter Include="src\memory_utils">
       <UniqueIdentifier>{9952ae43-283d-42dc-83a1-1ebe2cb52698}</UniqueIdentifier>
     </Filter>
-    <Filter Include="src\shellcode_patch_helper">
-      <UniqueIdentifier>{564f5e79-b89c-46a4-b338-0038f7f8d680}</UniqueIdentifier>
-    </Filter>
     <Filter Include="src\minhook">
       <UniqueIdentifier>{4ab23411-d338-4f01-aa64-6b5de70bb6a3}</UniqueIdentifier>
     </Filter>
@@ -28,9 +25,6 @@
     </ClInclude>
     <ClInclude Include="src\memory_utils\memory_utils.h">
       <Filter>src\memory_utils</Filter>
-    </ClInclude>
-    <ClInclude Include="src\shellcode_patch_helper\shellcode_patch_helper.h">
-      <Filter>src\shellcode_patch_helper</Filter>
     </ClInclude>
     <ClInclude Include="src\minhook\minhook.h">
       <Filter>src\minhook</Filter>

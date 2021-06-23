@@ -26,7 +26,6 @@
     <ClInclude Include="src\includes.h" />
     <ClInclude Include="src\memory_utils\memory_utils.h" />
     <ClInclude Include="src\minhook\minhook.h" />
-    <ClInclude Include="src\shellcode_patch_helper\shellcode_patch_helper.h" />
   </ItemGroup>
   <ItemGroup>
     <Library Include="src\minhook\minhook.lib" />

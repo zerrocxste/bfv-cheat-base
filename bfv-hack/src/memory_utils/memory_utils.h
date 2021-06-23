@@ -30,48 +30,60 @@ namespace memory_utils
 	extern std::vector<DWORD_OF_BITNESS> find_pattern_in_heap_array(const char* pattern, const char* mask, DWORD scan_speed = 0x1);
 
 	template<class T>
-	T read(std::vector<DWORD_OF_BITNESS>address)
+	T read_pointer(std::vector<DWORD_OF_BITNESS>address)
 	{
-		size_t length_array = address.size() - 1;
+		if (address.empty())
+			return NULL;
+
 		DWORD_OF_BITNESS relative_address = address[0];
+
+		auto length_array = address.size() - 1;
+
+		if (length_array == 0 && is_valid_ptr((LPVOID)relative_address))
+			return (T)relative_address;
+
 		for (int i = 1; i < length_array + 1; i++)
 		{
 			if (is_valid_ptr((LPVOID)relative_address) == false)
-				return T();
+				break;
 
 			if (i < length_array)
 				relative_address = *(DWORD_OF_BITNESS*)(relative_address + address[i]);
 			else
-			{
-				T readable_address = *(T*)(relative_address + address[length_array]);
-				return readable_address;
-			}
+				return (T)(relative_address + address[length_array]);
 		}
+
+		return NULL;
 	}
 
 	template<class T>
-	void write(std::vector<DWORD_OF_BITNESS>address, T value)
+	T read_value(std::vector<DWORD_OF_BITNESS>address)
 	{
-		size_t length_array = address.size() - 1;
-		DWORD_OF_BITNESS relative_address = address[0];
-		for (int i = 1; i < length_array + 1; i++)
-		{
-			if (is_valid_ptr((LPVOID)relative_address) == false)
-				return;
+		T* ptr = read_pointer<T*>(address);
 
-			if (i < length_array)
-				relative_address = *(DWORD_OF_BITNESS*)(relative_address + address[i]);
-			else
-			{
-				T* writable_address = (T*)(relative_address + address[length_array]);
-				*writable_address = value;
-			}
-		}
+		if (ptr == NULL)
+			return T();
+
+		return *(T*)ptr;
+	}
+
+	template<class T>
+	bool write(std::vector<DWORD_OF_BITNESS>address, T my_value)
+	{
+		T* ptr = read_pointer<T*>(address);
+
+		if (ptr == NULL)
+			return false;
+
+		*ptr = my_value;
+
+		return true;
 	}
 
 	extern char* read_string(std::vector<DWORD_OF_BITNESS> address);
+	extern wchar_t* read_wstring(std::vector<DWORD_OF_BITNESS>address);
 
-	extern void write_string(std::vector<DWORD_OF_BITNESS> address, char* value);
+	extern bool write_string(std::vector<DWORD_OF_BITNESS> address, char* my_value);
 
 	extern void patch_instruction(DWORD_OF_BITNESS instruction_address, const char* instruction_bytes, int sizeof_instruction_byte);
 	extern void fill_memory_region(DWORD_OF_BITNESS instruction_address, int byte, int sizeof_instruction_byte);
