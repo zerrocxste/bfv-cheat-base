@@ -30,7 +30,7 @@ std::mutex mtx;
 using fUnkFunc = void(__fastcall*)(__int64);
 fUnkFunc pfUnkFunc = NULL;
 
-void __fastcall UnkFunc_hooked(__int64 a1, __int64 a2)
+void __fastcall UnkFunc_hooked(__int64 a1)
 {
 	DWORD_PTR client_soldier_entity = (DWORD_PTR)a1 - 0x338;
 	//cse + 0xC90 = coords
