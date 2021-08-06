@@ -11,9 +11,9 @@ namespace memory_utils
 		return base;
 	}
 
-	DWORD_OF_BITNESS get_base_address()
+	DWORD_PTR get_base_address()
 	{
-		return (DWORD_OF_BITNESS)get_base();
+		return (DWORD_PTR)get_base();
 	}
 
 	bool is_valid_ptr(PVOID ptr)
@@ -21,39 +21,51 @@ namespace memory_utils
 		return (ptr >= (PVOID)0x10000) && (ptr < PTRMAXVAL) && ptr != nullptr && !IsBadReadPtr(ptr, sizeof(ptr));
 	}
 
-	bool write_string(std::vector<DWORD_OF_BITNESS>address, char* my_value)
+	char* read_string(std::vector<DWORD_PTR>address)
+	{
+		return read_pointer<char*>(address);
+	}
+
+	wchar_t* read_wstring(std::vector<DWORD_PTR>address)
+	{
+		return read_pointer<wchar_t*>(address);
+	}
+
+	bool write_string(std::vector<DWORD_PTR>address, char* my_value)
 	{
 		char* ptr = read_pointer<char*>(address);
 
 		if (ptr == NULL)
 			return false;
 
-		*ptr = *my_value;
+		strcpy(ptr, my_value);
 
 		return true;
 	}
 
-	char* read_string(std::vector<DWORD_OF_BITNESS>address)
+	bool write_wstring(std::vector<DWORD_PTR> address, wchar_t* my_value)
 	{
-		return read_pointer<char*>(address);
+		wchar_t* ptr = read_pointer<wchar_t*>(address);
+
+		if (ptr == NULL)
+			return false;
+
+		lstrcpyW(ptr, my_value);
+
+		return true;
 	}
 
-	wchar_t* read_wstring(std::vector<DWORD_OF_BITNESS>address)
+	DWORD_PTR get_module_size(DWORD_PTR address)
 	{
-		return read_pointer<wchar_t*>(address);
+		return PIMAGE_NT_HEADERS(address + (DWORD_PTR)PIMAGE_DOS_HEADER(address)->e_lfanew)->OptionalHeader.SizeOfImage;
 	}
 
-	DWORD_OF_BITNESS get_module_size(DWORD_OF_BITNESS address)
+	DWORD_PTR compare_mem(const char* pattern, const char* mask, DWORD_PTR base, DWORD_PTR size, const int patternLength, DWORD speed)
 	{
-		return PIMAGE_NT_HEADERS(address + (DWORD_OF_BITNESS)PIMAGE_DOS_HEADER(address)->e_lfanew)->OptionalHeader.SizeOfImage;
-	}
-
-	DWORD_OF_BITNESS compare_mem(const char* pattern, const char* mask, DWORD_OF_BITNESS base, DWORD_OF_BITNESS size, const int patternLength, DWORD speed)
-	{
-		for (DWORD_OF_BITNESS i = 0; i < size - patternLength; i += speed)
+		for (DWORD_PTR i = 0; i < size - patternLength; i += speed)
 		{
 			bool found = true;
-			for (DWORD_OF_BITNESS j = 0; j < patternLength; j++)
+			for (DWORD_PTR j = 0; j < patternLength; j++)
 			{
 				if (mask[j] == '?')
 					continue;
@@ -77,174 +89,121 @@ namespace memory_utils
 		return NULL;
 	}
 
-	DWORD_OF_BITNESS find_pattern(HMODULE module, const char* pattern, const char* mask, DWORD scan_speed)
+	DWORD_PTR pattern_scanner_module(HMODULE module, const char* pattern, const char* mask, DWORD scan_speed)
 	{
-		DWORD_OF_BITNESS base = (DWORD_OF_BITNESS)module;
-		DWORD_OF_BITNESS size = get_module_size(base);
+		DWORD_PTR base = (DWORD_PTR)module;
+		DWORD_PTR size = get_module_size(base);
 
-		DWORD_OF_BITNESS patternLength = (DWORD_OF_BITNESS)strlen(mask);
+		DWORD_PTR patternLength = (DWORD_PTR)strlen(mask);
 
 		return compare_mem(pattern, mask, base, size, patternLength, scan_speed);
 	}
 
-	DWORD_OF_BITNESS find_pattern_in_heap(const char* pattern, const char* mask, DWORD scan_speed)
+	DWORD_PTR pattern_scanner(
+		DWORD_PTR start, DWORD_PTR end,
+		const char* pattern, const char* mask,
+		DWORD scan_speed,
+		DWORD page_prot, DWORD page_state, DWORD page_type)
 	{
-		SYSTEM_INFO sysInfo;
-		GetSystemInfo(&sysInfo);
-		DWORD_OF_BITNESS base = (DWORD_OF_BITNESS)GetProcessHeap();
-		DWORD_OF_BITNESS size = (DWORD_OF_BITNESS)sysInfo.lpMaximumApplicationAddress;
+		auto pattern_length = strlen(mask);
 
-		DWORD_OF_BITNESS base_start = base;
-		DWORD_OF_BITNESS end_size = size;
-
-		DWORD_OF_BITNESS patternLength = (DWORD_OF_BITNESS)strlen(mask);
-
-		MEMORY_BASIC_INFORMATION mbi;
-
-		while (base_start < end_size && VirtualQuery((LPCVOID)base_start, &mbi, sizeof(mbi)) != NULL)
+		MEMORY_BASIC_INFORMATION mbi{};
+		while (start < end &&
+			VirtualQuery((void*)start, &mbi, sizeof(MEMORY_BASIC_INFORMATION)) != NULL)
 		{
-			DWORD_OF_BITNESS start = (DWORD_OF_BITNESS)mbi.BaseAddress;
-			DWORD_OF_BITNESS end = mbi.RegionSize;
+			auto fix_seg = false;
+			DWORD_PTR start_seg = (DWORD_PTR)mbi.BaseAddress;
+			DWORD_PTR size_seg = mbi.RegionSize;
 
-			bool is_accessible = (mbi.Protect == PAGE_READWRITE);
-			bool is_mem_state_ok = (mbi.State == MEM_COMMIT);
-
-			if (is_accessible && is_mem_state_ok)
+			if (mbi.Protect == page_prot
+				&& mbi.State == page_state
+				&& mbi.Type == page_type)
 			{
-				auto compare_result = compare_mem(pattern, mask, start, end, patternLength, scan_speed);
+				if (start > start_seg)
+				{
+					size_seg -= start - start_seg;
+					fix_seg = true;
+				}
 
-				if (compare_result != NULL)
+				if (auto compare_result = compare_mem(pattern, mask, start, end, pattern_length, scan_speed))
 					return compare_result;
 			}
-			base_start += end;
+			fix_seg ? start += size_seg : start = start_seg + size_seg;
 		}
 
 		return NULL;
 	}
 
-	std::vector<DWORD_OF_BITNESS> find_pattern_in_heap_array(const char* pattern, const char* mask, DWORD scan_speed)
+	std::vector<DWORD_PTR> pattern_scanner_vec(
+		DWORD_PTR start, DWORD_PTR end,
+		const char* pattern, const char* mask,
+		DWORD scan_speed,
+		DWORD page_prot, DWORD page_state, DWORD page_type)
 	{
-		std::vector<DWORD_OF_BITNESS>temp;
+		std::vector<DWORD_PTR>ret;
 
-		SYSTEM_INFO sysInfo;
-		GetSystemInfo(&sysInfo);
-		DWORD_OF_BITNESS base = (DWORD_OF_BITNESS)GetProcessHeap();
-		DWORD_OF_BITNESS size = (DWORD_OF_BITNESS)sysInfo.lpMaximumApplicationAddress;
+		auto pattern_length = strlen(mask);
 
-		DWORD_OF_BITNESS base_start = base;
-		DWORD_OF_BITNESS end_size = size;
-
-		DWORD_OF_BITNESS patternLength = (DWORD_OF_BITNESS)strlen(mask);
-
-		MEMORY_BASIC_INFORMATION mbi;
-
-		while (base_start < end_size && VirtualQuery((LPCVOID)base_start, &mbi, sizeof(mbi)) != NULL)
+		MEMORY_BASIC_INFORMATION mbi{};
+		while (start < end &&
+			VirtualQuery((void*)start, &mbi, sizeof(MEMORY_BASIC_INFORMATION)) != NULL)
 		{
-			DWORD_OF_BITNESS start = (DWORD_OF_BITNESS)mbi.BaseAddress;
-			DWORD_OF_BITNESS end = mbi.RegionSize;
+			auto fix_seg = false;
+			DWORD_PTR start_seg = (DWORD_PTR)mbi.BaseAddress;
+			DWORD_PTR size_seg = mbi.RegionSize;
 
-			bool is_accessible = (mbi.Protect == PAGE_READWRITE);
-			bool is_mem_state_ok = (mbi.State == MEM_COMMIT);
-
-			if (is_accessible && is_mem_state_ok)
+			if (mbi.Protect == page_prot
+				&& mbi.State == page_state
+				&& mbi.Type == page_type)
 			{
-				auto compare_result = compare_mem(pattern, mask, start, end, patternLength, scan_speed);
+				if (start > start_seg)
+				{
+					size_seg -= start - start_seg;
+					fix_seg = true;
+				}
 
-				if (compare_result != NULL)
-					temp.push_back(compare_result);
+				if (auto compare_result = compare_mem(pattern, mask, start, end, pattern_length, scan_speed))
+					ret.push_back(compare_result);
 			}
-			base_start += end;
+			fix_seg ? start += size_seg : start = start_seg + size_seg;
 		}
 
-		return temp;
+		return ret;
 	}
 
-	DWORD_OF_BITNESS find_pattern_in_memory(const char* pattern, const char* mask, DWORD_OF_BITNESS base, DWORD_OF_BITNESS size, DWORD scan_speed)
-	{
-		DWORD_OF_BITNESS base_start = base;
-		DWORD_OF_BITNESS end_size = size;
-
-		DWORD_OF_BITNESS patternLength = (DWORD_OF_BITNESS)strlen(mask);
-
-		MEMORY_BASIC_INFORMATION mbi;
-
-		while (base_start < end_size && VirtualQuery((LPCVOID)base_start, &mbi, sizeof(mbi)) != NULL)
-		{
-			DWORD_OF_BITNESS start = (DWORD_OF_BITNESS)mbi.BaseAddress;
-			DWORD_OF_BITNESS end = mbi.RegionSize;
-
-			bool is_accessible = (mbi.Protect == PAGE_READWRITE);
-			bool is_mem_state_ok = (mbi.State == MEM_COMMIT);
-
-			if (is_accessible && is_mem_state_ok)
-			{
-				auto compare_result = compare_mem(pattern, mask, start, end, patternLength, scan_speed);
-
-				if (compare_result != NULL)
-					return compare_result;
-			}
-			base_start += end;
-		}
-
-		return NULL;
-	}
-
-	std::vector<DWORD_OF_BITNESS> find_pattern_in_memory_array(const char* pattern, const char* mask, DWORD_OF_BITNESS base, DWORD_OF_BITNESS size, DWORD scan_speed)
-	{
-		std::vector<DWORD_OF_BITNESS>temp;
-
-		DWORD_OF_BITNESS base_start = base;
-		DWORD_OF_BITNESS end_size = size;
-
-		DWORD_OF_BITNESS patternLength = (DWORD_OF_BITNESS)strlen(mask);
-
-		MEMORY_BASIC_INFORMATION mbi;
-
-		while (base_start < end_size && VirtualQuery((LPCVOID)base_start, &mbi, sizeof(mbi)) != NULL)
-		{
-			DWORD_OF_BITNESS start = (DWORD_OF_BITNESS)mbi.BaseAddress;
-			DWORD_OF_BITNESS end = mbi.RegionSize;
-
-			bool is_accessible = (mbi.Protect == PAGE_READWRITE);
-			bool is_mem_state_ok = (mbi.State == MEM_COMMIT);
-
-			if (is_accessible && is_mem_state_ok)
-			{
-				auto compare_result = compare_mem(pattern, mask, start, end, patternLength, scan_speed);
-
-				if (compare_result != NULL)
-					temp.push_back(compare_result);
-			}
-			base_start += end;
-		}
-
-		return temp;
-	}
-
-	void patch_instruction(DWORD_OF_BITNESS instruction_address, const char* instruction_bytes, int sizeof_instruction_byte)
+	bool patch_instruction(DWORD_PTR instruction_address, const char* instruction_bytes, int sizeof_instruction_byte)
 	{
 		DWORD dwOldProtection = NULL;
 
-		VirtualProtect((LPVOID)instruction_address, sizeof_instruction_byte, PAGE_EXECUTE_READWRITE, &dwOldProtection);
+		if (VirtualProtect((LPVOID)instruction_address, sizeof_instruction_byte, PAGE_EXECUTE_READWRITE, &dwOldProtection))
+		{
+			memcpy((LPVOID)instruction_address, instruction_bytes, sizeof_instruction_byte);
 
-		memcpy((LPVOID)instruction_address, instruction_bytes, sizeof_instruction_byte);
+			if (VirtualProtect((LPVOID)instruction_address, sizeof_instruction_byte, dwOldProtection, &dwOldProtection))
+			{
+				FlushInstructionCache(GetCurrentProcess(), (LPVOID)instruction_address, sizeof_instruction_byte);
+				return true;
+			}
+		}
 
-		VirtualProtect((LPVOID)instruction_address, sizeof_instruction_byte, dwOldProtection, NULL);
-
-		FlushInstructionCache(GetCurrentProcess(), (LPVOID)instruction_address, sizeof_instruction_byte);
+		return false;
 	}
 
-	void fill_memory_region(DWORD_OF_BITNESS instruction_address, int byte, int sizeof_instruction_byte)
+	bool fill_memory_region(DWORD_PTR instruction_address, int byte, int sizeof_instruction_byte)
 	{
 		DWORD dwOldProtection = NULL;
 
-		VirtualProtect((LPVOID)instruction_address, sizeof_instruction_byte, PAGE_EXECUTE_READWRITE, &dwOldProtection);
+		if (VirtualProtect((LPVOID)instruction_address, sizeof_instruction_byte, PAGE_EXECUTE_READWRITE, &dwOldProtection))
+		{
+			memset((LPVOID)instruction_address, byte, sizeof_instruction_byte);
+			if (VirtualProtect((LPVOID)instruction_address, sizeof_instruction_byte, dwOldProtection, &dwOldProtection))
+			{
+				FlushInstructionCache(GetCurrentProcess(), (LPVOID)instruction_address, sizeof_instruction_byte);
+				return true;
+			}
+		}
 
-		memset((LPVOID)instruction_address, byte, sizeof_instruction_byte);
-
-		VirtualProtect((LPVOID)instruction_address, sizeof_instruction_byte, dwOldProtection, NULL);
-
-		FlushInstructionCache(GetCurrentProcess(), (LPVOID)instruction_address, sizeof_instruction_byte);
+		return false;
 	}
 }
 

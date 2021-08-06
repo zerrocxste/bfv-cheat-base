@@ -4,10 +4,8 @@
 namespace memory_utils
 {
 #ifdef _WIN64
-#define DWORD_OF_BITNESS DWORD64
 #define PTRMAXVAL ((PVOID)0x000F000000000000)
 #elif _WIN32
-#define DWORD_OF_BITNESS DWORD
 #define PTRMAXVAL ((PVOID)0xFFF00000)
 #endif
 
@@ -15,51 +13,50 @@ namespace memory_utils
 
 	extern HMODULE get_base();
 
-	extern DWORD_OF_BITNESS get_base_address();
+	extern DWORD_PTR get_base_address();
 
-	extern DWORD_OF_BITNESS get_module_size(DWORD_OF_BITNESS address);
+	extern DWORD_PTR get_module_size(DWORD_PTR address);
 
-	extern DWORD_OF_BITNESS find_pattern(HMODULE module, const char* pattern, const char* mask, DWORD scan_speed = 0x1);
+	extern DWORD_PTR find_pattern(HMODULE module, const char* pattern, const char* mask, DWORD scan_speed = 0x1);
 
-	extern DWORD_OF_BITNESS find_pattern_in_heap(const char* pattern, const char* mask, DWORD scan_speed = 0x1);
+	DWORD_PTR pattern_scanner(
+		DWORD_PTR start, DWORD_PTR end,
+		const char* pattern, const char* mask,
+		DWORD scan_speed,
+		DWORD page_prot = PAGE_EXECUTE_READ, DWORD page_state = MEM_COMMIT, DWORD page_type = MEM_PRIVATE);
 
-	extern DWORD_OF_BITNESS find_pattern_in_memory(const char* pattern, const char* mask, DWORD_OF_BITNESS base, DWORD_OF_BITNESS size, DWORD scan_speed = 0x1);
-
-	extern std::vector<DWORD_OF_BITNESS> find_pattern_in_memory_array(const char* pattern, const char* mask, DWORD_OF_BITNESS base, DWORD_OF_BITNESS size, DWORD scan_speed = 0x1);
-
-	extern std::vector<DWORD_OF_BITNESS> find_pattern_in_heap_array(const char* pattern, const char* mask, DWORD scan_speed = 0x1);
+	std::vector<DWORD_PTR> pattern_scanner_vec(
+		DWORD_PTR start, DWORD_PTR end,
+		const char* pattern, const char* mask,
+		DWORD scan_speed,
+		DWORD page_prot = PAGE_EXECUTE_READ, DWORD page_state = MEM_COMMIT, DWORD page_type = MEM_PRIVATE);
 
 	template<class T>
-	T read_pointer(std::vector<DWORD_OF_BITNESS>address)
+	T read_pointer(std::vector<DWORD_PTR> list)
 	{
-		if (address.empty())
+		if (list.empty())
 			return NULL;
 
-		DWORD_OF_BITNESS relative_address = address[0];
+		DWORD_PTR ptr = list.front();
 
-		auto length_array = address.size() - 1;
-
-		if (length_array == 0 && is_valid_ptr((LPVOID)relative_address))
-			return (T)relative_address;
-
-		for (int i = 1; i < length_array + 1; i++)
+		for (INT_PTR i = 0; i < list.size(); i++)
 		{
-			if (is_valid_ptr((LPVOID)relative_address) == false)
+			if (!is_valid_ptr((LPVOID)ptr))
 				break;
 
-			if (i < length_array)
-				relative_address = *(DWORD_OF_BITNESS*)(relative_address + address[i]);
+			if (i < (int)(list.size() - 2))
+				ptr = *(DWORD_PTR*)(ptr + list.at(i + 1));
 			else
-				return (T)(relative_address + address[length_array]);
+				return list.size() == 1 ? (T)ptr : (T)(ptr + list.back());
 		}
 
 		return NULL;
 	}
 
 	template<class T>
-	T read_value(std::vector<DWORD_OF_BITNESS>address)
+	T read_value(std::vector<DWORD_PTR> list)
 	{
-		T* ptr = read_pointer<T*>(address);
+		T* ptr = read_pointer<T*>(list);
 
 		if (ptr == NULL)
 			return T();
@@ -68,9 +65,9 @@ namespace memory_utils
 	}
 
 	template<class T>
-	bool write(std::vector<DWORD_OF_BITNESS>address, T my_value)
+	bool write(std::vector<DWORD_PTR> list, T my_value)
 	{
-		T* ptr = read_pointer<T*>(address);
+		T* ptr = read_pointer<T*>(list);
 
 		if (ptr == NULL)
 			return false;
@@ -80,11 +77,12 @@ namespace memory_utils
 		return true;
 	}
 
-	extern char* read_string(std::vector<DWORD_OF_BITNESS> address);
-	extern wchar_t* read_wstring(std::vector<DWORD_OF_BITNESS>address);
+	extern char* read_string(std::vector<DWORD_PTR> address);
+	extern wchar_t* read_wstring(std::vector<DWORD_PTR>address);
 
-	extern bool write_string(std::vector<DWORD_OF_BITNESS> address, char* my_value);
+	extern bool write_string(std::vector<DWORD_PTR> address, char* my_value);
+	extern bool write_wstring(std::vector<DWORD_PTR> address, wchar_t* my_value);
 
-	extern void patch_instruction(DWORD_OF_BITNESS instruction_address, const char* instruction_bytes, int sizeof_instruction_byte);
-	extern void fill_memory_region(DWORD_OF_BITNESS instruction_address, int byte, int sizeof_instruction_byte);
+	extern bool patch_instruction(DWORD_PTR instruction_address, const char* instruction_bytes, int sizeof_instruction_byte);
+	extern bool fill_memory_region(DWORD_PTR instruction_address, int byte, int sizeof_instruction_byte);
 }
