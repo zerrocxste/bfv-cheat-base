@@ -101,6 +101,7 @@ void thread(void* arg)
 	while (!GetAsyncKeyState(VK_DELETE))
 	{
 		auto local_cse = memory_utils::read_value<DWORD_PTR>({ pClientSoldierEntityLocal });
+		auto local_teamid = memory_utils::read_value<int>({ local_cse, 0x234 });
 
 		mtx.lock();
 		if (ClientSoldierEntityStructList.size())
@@ -118,6 +119,7 @@ void thread(void* arg)
 
 				if (memory_utils::is_valid_ptr((void*)cse))
 				{
+					auto teamid = memory_utils::read_value<int>({ cse, 0x234 });
 					auto health_component = memory_utils::read_value<DWORD_PTR>({ cse, 0x2E8 });
 					if (health_component != NULL)
 					{
@@ -126,7 +128,7 @@ void thread(void* arg)
 						if (health > 0.1f && health <= 150.f)
 						{
 							i++;
-							printf("cse: 0x%I64X, health: %.1f, x: %.3f, y: %.3f, z: %.3f\n", cse, health, origin.x, origin.y, origin.z);
+							printf("cse: 0x%I64X, team: %d, health: %.1f, x: %.3f, y: %.3f, z: %.3f\n", cse, teamid, health, origin.x, origin.y, origin.z);
 						}
 					}
 				}
