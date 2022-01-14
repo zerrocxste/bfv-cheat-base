@@ -55,23 +55,20 @@ namespace memory_utils
 		return true;
 	}
 
-	DWORD_PTR get_module_size(DWORD_PTR address)
+	DWORD get_module_size(DWORD_PTR address)
 	{
-		return PIMAGE_NT_HEADERS(address + (DWORD_PTR)PIMAGE_DOS_HEADER(address)->e_lfanew)->OptionalHeader.SizeOfImage;
+		return PIMAGE_NT_HEADERS(address + PIMAGE_DOS_HEADER(address)->e_lfanew)->OptionalHeader.SizeOfImage;
 	}
 
-	DWORD_PTR compare_mem(const char* pattern, const char* mask, DWORD_PTR base, DWORD_PTR size, const int patternLength, DWORD speed)
+	DWORD_PTR compare_mem(const char* pattern, const char* mask, DWORD_PTR base, DWORD size, const int patternLength, DWORD speed)
 	{
-		for (DWORD_PTR i = 0; i < size - patternLength; i += speed)
+		for (DWORD i = 0; i < size - patternLength; i += speed)
 		{
 			bool found = true;
-			for (DWORD_PTR j = 0; j < patternLength; j++)
+			for (int j = 0; j < patternLength; j++)
 			{
 				if (mask[j] == '?')
 					continue;
-
-				/*if (IsBadCodePtr((FARPROC)(base + i + j)) != NULL)
-					continue;*/
 
 				if (pattern[j] != *(char*)(base + i + j))
 				{
@@ -91,10 +88,10 @@ namespace memory_utils
 
 	DWORD_PTR pattern_scanner_module(HMODULE module, const char* pattern, const char* mask, DWORD scan_speed)
 	{
-		DWORD_PTR base = (DWORD_PTR)module;
-		DWORD_PTR size = get_module_size(base);
+		auto base = (DWORD_PTR)module;
+		auto size = get_module_size(base);
 
-		DWORD_PTR patternLength = (DWORD_PTR)strlen(mask);
+		int patternLength = (int)strlen(mask);
 
 		return compare_mem(pattern, mask, base, size, patternLength, scan_speed);
 	}
@@ -109,25 +106,32 @@ namespace memory_utils
 
 		MEMORY_BASIC_INFORMATION mbi{};
 		while (start < end &&
-			VirtualQuery((void*)start, &mbi, sizeof(MEMORY_BASIC_INFORMATION)) != NULL)
+			VirtualQuery((void*)start, &mbi, sizeof(MEMORY_BASIC_INFORMATION)) != 0)
 		{
 			auto fix_seg = false;
 			DWORD_PTR start_seg = (DWORD_PTR)mbi.BaseAddress;
 			DWORD_PTR size_seg = mbi.RegionSize;
 
-			if (mbi.Protect == page_prot
-				&& mbi.State == page_state
-				&& mbi.Type == page_type)
-			{
-				if (start > start_seg)
-				{
-					size_seg -= start - start_seg;
-					fix_seg = true;
-				}
+			if (page_prot != 0 && mbi.Protect != page_prot)
+				goto next_seg;
 
-				if (auto compare_result = compare_mem(pattern, mask, start, end, pattern_length, scan_speed))
-					return compare_result;
+			if (page_state != 0 && mbi.State != page_state)
+				goto next_seg;
+
+			if (page_type != 0 && mbi.Type != page_type)
+				goto next_seg;
+
+			if (start > start_seg)
+			{
+				size_seg -= start - start_seg;
+				fix_seg = true;
 			}
+
+			if (auto compare_result = compare_mem(pattern, mask, start, end, pattern_length, scan_speed))
+				return compare_result;
+
+			next_seg:
+
 			fix_seg ? start += size_seg : start = start_seg + size_seg;
 		}
 
@@ -146,25 +150,32 @@ namespace memory_utils
 
 		MEMORY_BASIC_INFORMATION mbi{};
 		while (start < end &&
-			VirtualQuery((void*)start, &mbi, sizeof(MEMORY_BASIC_INFORMATION)) != NULL)
+			VirtualQuery((void*)start, &mbi, sizeof(MEMORY_BASIC_INFORMATION)) != 0)
 		{
 			auto fix_seg = false;
 			DWORD_PTR start_seg = (DWORD_PTR)mbi.BaseAddress;
 			DWORD_PTR size_seg = mbi.RegionSize;
 
-			if (mbi.Protect == page_prot
-				&& mbi.State == page_state
-				&& mbi.Type == page_type)
-			{
-				if (start > start_seg)
-				{
-					size_seg -= start - start_seg;
-					fix_seg = true;
-				}
+			if (page_prot != 0 && mbi.Protect != page_prot)
+				goto next_seg;
 
-				if (auto compare_result = compare_mem(pattern, mask, start, end, pattern_length, scan_speed))
-					ret.push_back(compare_result);
+			if (page_state != 0 && mbi.State != page_state)
+				goto next_seg;
+
+			if (page_type != 0 && mbi.Type != page_type)
+				goto next_seg;
+
+			if (start > start_seg)
+			{
+				size_seg -= start - start_seg;
+				fix_seg = true;
 			}
+
+			if (auto compare_result = compare_mem(pattern, mask, start, end, pattern_length, scan_speed))
+				ret.push_back(compare_result);
+
+			next_seg:
+
 			fix_seg ? start += size_seg : start = start_seg + size_seg;
 		}
 
@@ -206,4 +217,5 @@ namespace memory_utils
 		return false;
 	}
 }
+
 

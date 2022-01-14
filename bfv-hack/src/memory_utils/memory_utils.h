@@ -15,9 +15,9 @@ namespace memory_utils
 
 	extern DWORD_PTR get_base_address();
 
-	extern DWORD_PTR get_module_size(DWORD_PTR address);
+	extern DWORD get_module_size(DWORD_PTR address);
 
-	extern DWORD_PTR find_pattern(HMODULE module, const char* pattern, const char* mask, DWORD scan_speed = 0x1);
+	extern DWORD_PTR pattern_scanner_module(HMODULE module, const char* pattern, const char* mask, DWORD scan_speed = 0x1);
 
 	DWORD_PTR pattern_scanner(
 		DWORD_PTR start, DWORD_PTR end,
@@ -44,7 +44,7 @@ namespace memory_utils
 			if (!is_valid_ptr((LPVOID)ptr))
 				break;
 
-			if (i < (int)(list.size() - 2))
+			if (i < (INT_PTR)(list.size() - 2))
 				ptr = *(DWORD_PTR*)(ptr + list.at(i + 1));
 			else
 				return list.size() == 1 ? (T)ptr : (T)(ptr + list.back());
